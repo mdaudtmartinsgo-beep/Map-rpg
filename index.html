@@ -26,10 +26,14 @@
 
         /* Galeria de Miniaturas */
         .token-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
-        .token-card { background: #ecf0f1; color: #2c3e50; padding: 10px; border-radius: 6px; text-align: center; width: 140px; position: relative; }
+        .token-card { background: #ecf0f1; color: #2c3e50; padding: 10px; border-radius: 6px; text-align: center; width: 140px; position: relative; display: flex; flex-direction: column; align-items: center; }
         .token-card img { max-width: 100px; max-height: 100px; object-fit: contain; border-radius: 4px; }
         .token-tag { font-family: monospace; font-weight: bold; font-size: 0.9em; background: #bdc3c7; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 5px; word-break: break-all; }
-        .token-desc { font-size: 0.8em; margin-top: 5px; color: #7f8c8d; }
+        .token-desc { font-size: 0.8em; margin-top: 5px; color: #7f8c8d; line-height: 1.2; }
+        
+        /* Botão de Excluir Token */
+        .delete-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .delete-btn:hover { background: #c0392b; transform: scale(1.1); }
 
         /* Área de Prompt da IA */
         .ai-prompt-header { display: flex; justify-content: space-between; align-items: center; }
@@ -54,12 +58,12 @@
     <div class="section-box">
         <h2>1. Gerenciar Miniaturas e Pisos</h2>
         
-        <p><strong>Adicionar Novo Token:</strong> Selecione a imagem, dê um nome (sem espaços) e uma descrição.</p>
+        <p><strong>Adicionar Tokens:</strong> Selecione uma ou várias imagens. O nome será preenchido automaticamente.</p>
         <div class="token-form">
-            <input type="file" id="imageInput" accept="image/png, image/jpeg">
-            <input type="text" id="tokenNameInput" placeholder="Nome (ex: piso_pedra)">
+            <input type="file" id="imageInput" accept="image/png, image/jpeg" multiple>
+            <input type="text" id="tokenNameInput" placeholder="Nome (se vazio, usa o do arquivo)">
             <input type="text" id="tokenDescInput" placeholder="Descrição (ex: Textura de chão)">
-            <button id="addTokenBtn">+ Adicionar</button>
+            <button id="addTokenBtn">+ Adicionar Imagem(ns)</button>
         </div>
 
         <div class="collection-controls">
@@ -99,12 +103,12 @@ ax.set_yticks(range(11))
 ax.set_title("Tabuleiro de Batalha")
 
 # --- O código gerado pela IA entrará aqui ---
-# Exemplo de como a IA deve agir agora:
+# Exemplo:
 # img_piso = plt.imread("{{madeira}}")
-# ax.imshow(img_piso, extent=[0, 10, 0, 10], zorder=1) # Piso total
+# ax.imshow(img_piso, extent=[0, 10, 0, 10], zorder=1)
 #
 # img_personagem = plt.imread("{{guerreiro}}")
-# ax.imshow(img_personagem, extent=[2, 3, 2, 3], zorder=10) # Fica no quadrado exato (X=2, Y=2)
+# ax.imshow(img_personagem, extent=[2, 3, 2, 3], zorder=10)
 
 plt.show()
         </textarea>
@@ -147,7 +151,7 @@ plt.show()
         }
     }
 
-    // NOVA FUNÇÃO DO PROMPT DA IA (COM EXTENT E ZORDER)
+    // FUNÇÃO DO PROMPT DA IA
     function updateAIPrompt() {
         const promptBox = document.getElementById('aiPromptBox');
         let basePrompt = `Atue como um assistente gerador de código Python para um tabuleiro virtual de RPG.
@@ -180,12 +184,45 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
         alert("Prompt copiado!");
     }
 
+    // Função para excluir token
+    function deleteToken(tokenName) {
+        if (!confirm(`Tem certeza que deseja apagar o token "${tokenName}"?`)) return;
+
+        // Encontra o índice no array
+        const index = tokensInfo.findIndex(t => t.name === tokenName);
+        if (index > -1) {
+            const token = tokensInfo[index];
+            
+            // Remove do sistema de arquivos virtual do Python
+            try {
+                if (pyodideInstance) {
+                    pyodideInstance.FS.unlink(token.path);
+                }
+            } catch (err) {
+                console.warn("Erro ao deletar arquivo do Python:", err);
+            }
+
+            // Remove do Array
+            tokensInfo.splice(index, 1);
+
+            // Remove visualmente da galeria
+            const cardElement = document.getElementById(`card-${tokenName}`);
+            if (cardElement) cardElement.remove();
+
+            // Atualiza o prompt
+            updateAIPrompt();
+            
+            document.getElementById('consoleOutput').innerText += `\n[Sistema] Token {{${tokenName}}} removido.\n`;
+        }
+    }
+
     function renderTokenCard(name, desc, dataUrl) {
         const gallery = document.getElementById('tokenGallery');
         const card = document.createElement('div');
         card.className = 'token-card';
         card.id = `card-${name}`;
         card.innerHTML = `
+            <button class="delete-btn" onclick="deleteToken('${name}')" title="Excluir token">X</button>
             <img src="${dataUrl}" alt="${name}">
             <br>
             <span class="token-tag">{{${name}}}</span>
@@ -195,41 +232,85 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
     }
 
     // ----------------------------------------------------
-    // ADICIONAR NOVO TOKEN (UPLOAD INDIVIDUAL)
+    // PREENCHIMENTO AUTOMÁTICO DO NOME DA IMAGEM
+    // ----------------------------------------------------
+    document.getElementById('imageInput').addEventListener('change', function(e) {
+        if (this.files && this.files.length === 1) {
+            // Se for apenas 1 arquivo, preenche com o nome dele
+            const fileName = this.files[0].name;
+            const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase();
+            document.getElementById('tokenNameInput').value = cleanName;
+        } else if (this.files && this.files.length > 1) {
+            // Se forem vários, avisa que o nome de cada arquivo será usado
+            document.getElementById('tokenNameInput').value = "";
+            document.getElementById('tokenNameInput').placeholder = "Nomes automáticos (múltiplos arquivos)";
+        }
+    });
+
+    // ----------------------------------------------------
+    // ADICIONAR NOVO TOKEN (UPLOAD INDIVIDUAL OU MÚLTIPLO)
     // ----------------------------------------------------
     document.getElementById('addTokenBtn').addEventListener('click', async () => {
         const fileInput = document.getElementById('imageInput');
         const nameInput = document.getElementById('tokenNameInput');
         const descInput = document.getElementById('tokenDescInput');
 
-        if (fileInput.files.length === 0) { alert("Selecione uma imagem primeiro."); return; }
+        const files = fileInput.files;
+        if (files.length === 0) { alert("Selecione pelo menos uma imagem."); return; }
         if (!pyodideInstance) { alert("Aguarde o Python carregar primeiro."); return; }
 
-        const file = fileInput.files[0];
-        let tokenName = nameInput.value.trim().replace(/\s+/g, "_").toLowerCase() || file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase();
-        let tokenDesc = descInput.value.trim() || "Miniatura/Textura sem descrição.";
-        const virtualPath = `/tokens/${file.name}`;
+        let filesAdded = 0;
+        let globalDesc = descInput.value.trim();
 
-        if (tokensInfo.some(t => t.name === tokenName)) {
-            alert("Já existe um token com esse nome!"); return;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            // Lógica do nome: se tiver digitado nome e for só 1 arquivo, usa o digitado. Senão, usa o do arquivo.
+            let cleanFileName = file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase();
+            let tokenName = (files.length === 1 && nameInput.value.trim() !== "") ? nameInput.value.trim().replace(/\s+/g, "_").toLowerCase() : cleanFileName;
+            
+            let tokenDesc = globalDesc || "Miniatura/Textura adicionada em lote.";
+            const virtualPath = `/tokens/${file.name}`;
+
+            // Pula se já existir um com mesmo nome
+            if (tokensInfo.some(t => t.name === tokenName)) {
+                console.warn(`O token ${tokenName} já existe, pulando...`);
+                continue;
+            }
+
+            // Precisamos encapsular o FileReader em uma Promise para esperar o loop corretamente
+            await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = async function(evt) {
+                    const dataUrl = evt.target.result;
+                    
+                    // Converte base64 para buffer e salva no Python
+                    const res = await fetch(dataUrl);
+                    const buffer = await res.arrayBuffer();
+                    pyodideInstance.FS.writeFile(virtualPath, new Uint8Array(buffer));
+
+                    tokensInfo.push({ name: tokenName, desc: tokenDesc, path: virtualPath, dataUrl: dataUrl });
+                    renderTokenCard(tokenName, tokenDesc, dataUrl);
+                    filesAdded++;
+                    resolve();
+                };
+                reader.readAsDataURL(file);
+            });
         }
 
-        const reader = new FileReader();
-        reader.onload = async function(evt) {
-            const dataUrl = evt.target.result;
+        updateAIPrompt();
+        
+        if (filesAdded > 0) {
+            document.getElementById('consoleOutput').innerText += `\n[Sistema] ${filesAdded} token(s) adicionado(s) com sucesso.\n`;
+        } else {
+            alert("Nenhum token novo adicionado (talvez já existissem nomes duplicados).");
+        }
 
-            const res = await fetch(dataUrl);
-            const buffer = await res.arrayBuffer();
-            pyodideInstance.FS.writeFile(virtualPath, new Uint8Array(buffer));
-
-            tokensInfo.push({ name: tokenName, desc: tokenDesc, path: virtualPath, dataUrl: dataUrl });
-
-            renderTokenCard(tokenName, tokenDesc, dataUrl);
-            updateAIPrompt();
-
-            fileInput.value = ""; nameInput.value = ""; descInput.value = "";
-        };
-        reader.readAsDataURL(file);
+        // Limpa os inputs após o processo
+        fileInput.value = ""; 
+        nameInput.value = ""; 
+        descInput.value = "";
+        nameInput.placeholder = "Nome (se vazio, usa o do arquivo)";
     });
 
     // ----------------------------------------------------
