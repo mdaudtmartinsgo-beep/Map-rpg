@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesa de RPG com Matplotlib + IA Prompt</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #2c3e50; color: #ecf0f1; }
+        .container { background: #34495e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        h1, h2, h3 { color: #f1c40f; border-bottom: 1px solid #7f8c8d; padding-bottom: 5px; }
+        .section-box { background: #2c3e50; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #7f8c8d; }
+        
+        /* Formulário de Token */
+        .token-form { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .token-form input[type="file"] { flex: 1 1 100%; margin-bottom: 10px; }
+        .token-form input[type="text"] { flex: 1; padding: 10px; border-radius: 4px; border: 1px solid #7f8c8d; background: #1e272e; color: #fff; }
+        .token-form button { background-color: #27ae60; }
+        .token-form button:hover { background-color: #2ecc71; }
+
+        /* Galeria de Miniaturas */
+        .token-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
+        .token-card { background: #ecf0f1; color: #2c3e50; padding: 10px; border-radius: 6px; text-align: center; width: 140px; }
+        .token-card img { max-width: 100px; max-height: 100px; object-fit: contain; border-radius: 4px; }
+        .token-tag { font-family: monospace; font-weight: bold; font-size: 0.9em; background: #bdc3c7; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 5px; word-break: break-all; }
+        .token-desc { font-size: 0.8em; margin-top: 5px; color: #7f8c8d; }
+
+        /* Área de Prompt da IA */
+        .ai-prompt-header { display: flex; justify-content: space-between; align-items: center; }
+        .copy-btn { background-color: #8e44ad; padding: 8px 15px; font-size: 14px; }
+        .copy-btn:hover { background-color: #9b59b6; }
+        textarea.prompt-box { background: #1e272e; color: #f39c12; border-color: #f39c12; height: 200px; }
+
+        textarea { width: 100%; height: 300px; font-family: 'Courier New', Courier, monospace; padding: 15px; border: 1px solid #7f8c8d; border-radius: 4px; background: #1e272e; color: #00d8d6; font-size: 14px; box-sizing: border-box; }
+        button { background-color: #e67e22; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.3s; }
+        button:hover { background-color: #d35400; }
+        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        #plotOutput { max-width: 100%; margin-top: 20px; background: white; border-radius: 4px; padding: 10px; display: none; }
+        #consoleOutput { background: #000; color: #2ecc71; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; margin-top: 10px; max-height: 200px; overflow-y: auto; }
+        .error { color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Mesa Virtual: Python + Matplotlib</h1>
+    
+    <div class="section-box">
+        <h2>1. Adicionar Nova Miniatura</h2>
+        <p>Selecione a imagem, dê um nome (sem espaços) e uma descrição para a IA entender o que é.</p>
+        <div class="token-form">
+            <input type="file" id="imageInput" accept="image/png, image/jpeg">
+            <input type="text" id="tokenNameInput" placeholder="Nome do token (ex: goblin)">
+            <input type="text" id="tokenDescInput" placeholder="Descrição (ex: Inimigo fraco com adaga)">
+            <button id="addTokenBtn">Adicionar Token</button>
+        </div>
+        
+        <div class="token-gallery" id="tokenGallery"></div>
+    </div>
+
+    <div class="section-box">
+        <div class="ai-prompt-header">
+            <h2>2. Tutorial / Prompt para a IA</h2>
+            <button class="copy-btn" onclick="copyPrompt()">Copiar Prompt</button>
+        </div>
+        <p>Copie o texto abaixo e cole na IA (ChatGPT, Gemini, Claude, etc). Ela saberá exatamente como gerar o código.</p>
+        <textarea id="aiPromptBox" class="prompt-box" readonly></textarea>
+    </div>
+
+    <div class="section-box">
+        <h2>3. Código do Mapa (Cole o código da IA aqui)</h2>
+        <textarea id="pythonCode">
+import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+
+# Configura o mapa/grid de RPG
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 10)
+ax.grid(True, linestyle='--', color='gray', alpha=0.5)
+ax.set_xticks(range(11))
+ax.set_yticks(range(11))
+ax.set_title("Tabuleiro de Batalha")
+
+# O código que a IA gerar usando a função de colar tokens vai aqui:
+# Ex: img = plt.imread("{{nome_do_token}}")
+
+plt.show()
+        </textarea>
+        <button id="runBtn" disabled>Iniciando Motor Python...</button>
+    </div>
+
+    <h2>4. Tabuleiro Renderizado</h2>
+    <img id="plotOutput" alt="O mapa aparecerá aqui">
+    
+    <h3>Log do Sistema:</h3>
+    <div id="consoleOutput"></div>
+</div>
+
+<script>
+    let pyodideInstance = null;
+    let tokensInfo = []; // Array para guardar os objetos {name, desc, path}
+
+    // Inicializa o Python no navegador
+    async function initPyodide() {
+        const btn = document.getElementById('runBtn');
+        const consoleOut = document.getElementById('consoleOutput');
+        
+        try {
+            consoleOut.innerText += "[Sistema] Inicializando Pyodide (Aguarde...)...\n";
+            pyodideInstance = await loadPyodide({
+                stdout: (text) => { consoleOut.innerText += text + "\n"; },
+                stderr: (text) => { consoleOut.innerHTML += `<span class="error">${text}</span>\n`; }
+            });
+            
+            consoleOut.innerText += "[Sistema] Baixando Matplotlib...\n";
+            await pyodideInstance.loadPackage("matplotlib");
+            
+            try { pyodideInstance.FS.mkdir('/tokens'); } catch(e) { /* já existe */ }
+            
+            consoleOut.innerText += "[Sistema] Pronto para rolar os dados!\n\n";
+            btn.innerText = "Renderizar Tabuleiro";
+            btn.disabled = false;
+            updateAIPrompt(); // Gera o prompt inicial
+        } catch (err) {
+            consoleOut.innerHTML += `<span class="error">Falha crítica: ${err}</span>\n`;
+        }
+    }
+
+    // Função para atualizar a caixa de texto da IA
+    function updateAIPrompt() {
+        const promptBox = document.getElementById('aiPromptBox');
+        
+        let basePrompt = `Atue como um assistente gerador de código Python para um tabuleiro virtual de RPG.
+Eu vou usar um sistema onde eu rodo Matplotlib no navegador.
+
+Sempre siga essas regras estritas para criar o código:
+1. Crie um gráfico usando \`fig, ax = plt.subplots(figsize=(8, 8))\`.
+2. Configure o grid de acordo com o tamanho do cenário pedido (padrão 10x10).
+3. Para desenhar os personagens, CRIE uma função auxiliar que utilize \`OffsetImage\` do \`matplotlib.offsetbox\` e \`AnnotationBbox\`.
+4. IMPORTANTE: Para carregar a imagem na função auxiliar, você DEVE usar \`plt.imread("{{nome_do_token}}")\`. Eu possuo um sistema que vai substituir esse token dinamicamente.
+5. Nunca invente tokens. Use APENAS os tokens listados abaixo.
+
+LISTA DE TOKENS DISPONÍVEIS:
+`;
+
+        if (tokensInfo.length === 0) {
+            basePrompt += "(Nenhum token foi feito upload ainda. Aguarde eu fornecer a lista de tokens.)\n";
+        } else {
+            tokensInfo.forEach(t => {
+                basePrompt += `- {{${t.name}}} : ${t.desc}\n`;
+            });
+        }
+
+        basePrompt += `\nAguarde minhas instruções de posicionamento da história para gerar o código final!`;
+        promptBox.value = basePrompt;
+    }
+
+    // Função para copiar o prompt
+    function copyPrompt() {
+        const promptBox = document.getElementById('aiPromptBox');
+        promptBox.select();
+        document.execCommand("copy");
+        alert("Prompt copiado! Cole na sua IA favorita.");
+    }
+
+    // Adiciona o Token e atualiza o sistema
+    document.getElementById('addTokenBtn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('imageInput');
+        const nameInput = document.getElementById('tokenNameInput');
+        const descInput = document.getElementById('tokenDescInput');
+
+        if (fileInput.files.length === 0) {
+            alert("Selecione uma imagem primeiro.");
+            return;
+        }
+
+        let tokenName = nameInput.value.trim().replace(/\s+/g, "_").toLowerCase();
+        let tokenDesc = descInput.value.trim();
+
+        if (!tokenName) {
+            // Se não digitar nome, pega o nome do arquivo
+            tokenName = fileInput.files[0].name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase();
+        }
+        if (!tokenDesc) {
+            tokenDesc = "Miniatura sem descrição específica.";
+        }
+
+        const file = fileInput.files[0];
+        const virtualPath = `/tokens/${file.name}`;
+        
+        // Salva no Python
+        if (pyodideInstance) {
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8View = new Uint8Array(arrayBuffer);
+            pyodideInstance.FS.writeFile(virtualPath, uint8View);
+        } else {
+            alert("Aguarde o Python carregar primeiro.");
+            return;
+        }
+
+        // Salva no registro
+        tokensInfo.push({
+            name: tokenName,
+            desc: tokenDesc,
+            path: virtualPath
+        });
+
+        // Atualiza UI
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const gallery = document.getElementById('tokenGallery');
+            const card = document.createElement('div');
+            card.className = 'token-card';
+            card.innerHTML = `
+                <img src="${evt.target.result}" alt="${tokenName}">
+                <br>
+                <span class="token-tag">{{${tokenName}}}</span>
+                <div class="token-desc">${tokenDesc}</div>
+            `;
+            gallery.appendChild(card);
+        };
+        reader.readAsDataURL(file);
+
+        // Limpa inputs
+        fileInput.value = "";
+        nameInput.value = "";
+        descInput.value = "";
+
+        // Atualiza o prompt da IA
+        updateAIPrompt();
+    });
+
+    // Executa o Código
+    document.getElementById('runBtn').addEventListener('click', async () => {
+        let code = document.getElementById('pythonCode').value;
+        const consoleOut = document.getElementById('consoleOutput');
+        const plotOut = document.getElementById('plotOutput');
+        
+        consoleOut.innerText += "\n[Sistema] Renderizando mapa...\n";
+        plotOut.style.display = "none";
+
+        // Substituição dos Tokens
+        tokensInfo.forEach(t => {
+            const regex = new RegExp(`\\{\\{${t.name}\\}\\}`, 'g');
+            code = code.replace(regex, t.path);
+        });
+
+        const wrappedCode = `
+import matplotlib.pyplot as plt
+import io
+import base64
+
+plt.clf()
+
+# --- CÓDIGO DO USUÁRIO INÍCIO ---
+${code}
+# --- CÓDIGO DO USUÁRIO FIM ---
+
+buf = io.BytesIO()
+plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+buf.seek(0)
+base64.b64encode(buf.read()).decode('UTF-8')
+        `;
+
+        try {
+            let imgBase64 = await pyodideInstance.runPythonAsync(wrappedCode);
+            if (imgBase64) {
+                plotOut.src = "data:image/png;base64," + imgBase64;
+                plotOut.style.display = "block";
+                consoleOut.innerText += "[Sistema] Sucesso!\n";
+            }
+        } catch (err) {
+            consoleOut.innerHTML += `<span class="error">${err}</span>\n`;
+        }
+    });
+
+    initPyodide();
+</script>
+
+</body>
+</html>
