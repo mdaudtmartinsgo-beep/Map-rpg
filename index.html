@@ -35,9 +35,9 @@
         .ai-prompt-header { display: flex; justify-content: space-between; align-items: center; }
         .copy-btn { background-color: #8e44ad; color: white; border: none; cursor: pointer; padding: 8px 15px; font-size: 14px; border-radius: 4px; }
         .copy-btn:hover { background-color: #9b59b6; }
-        textarea.prompt-box { background: #1e272e; color: #f39c12; border-color: #f39c12; height: 200px; }
+        textarea.prompt-box { background: #1e272e; color: #f39c12; border-color: #f39c12; height: 280px; }
 
-        textarea { width: 100%; height: 300px; font-family: 'Courier New', Courier, monospace; padding: 15px; border: 1px solid #7f8c8d; border-radius: 4px; background: #1e272e; color: #00d8d6; font-size: 14px; box-sizing: border-box; }
+        textarea { width: 100%; height: 350px; font-family: 'Courier New', Courier, monospace; padding: 15px; border: 1px solid #7f8c8d; border-radius: 4px; background: #1e272e; color: #00d8d6; font-size: 14px; box-sizing: border-box; }
         button#runBtn { background-color: #e67e22; color: white; border: none; padding: 12px 24px; cursor: pointer; border-radius: 4px; font-size: 16px; font-weight: bold; transition: background 0.3s; margin-top: 10px; }
         button#runBtn:hover { background-color: #d35400; }
         button#runBtn:disabled { background-color: #7f8c8d; cursor: not-allowed; }
@@ -52,13 +52,13 @@
     <h1>Mesa Virtual: Python + Matplotlib</h1>
     
     <div class="section-box">
-        <h2>1. Gerenciar Miniaturas</h2>
+        <h2>1. Gerenciar Miniaturas e Pisos</h2>
         
         <p><strong>Adicionar Novo Token:</strong> Selecione a imagem, dê um nome (sem espaços) e uma descrição.</p>
         <div class="token-form">
             <input type="file" id="imageInput" accept="image/png, image/jpeg">
-            <input type="text" id="tokenNameInput" placeholder="Nome (ex: goblin)">
-            <input type="text" id="tokenDescInput" placeholder="Descrição (ex: Inimigo fraco)">
+            <input type="text" id="tokenNameInput" placeholder="Nome (ex: piso_pedra)">
+            <input type="text" id="tokenDescInput" placeholder="Descrição (ex: Textura de chão)">
             <button id="addTokenBtn">+ Adicionar</button>
         </div>
 
@@ -78,7 +78,7 @@
             <h2>2. Tutorial / Prompt para a IA</h2>
             <button class="copy-btn" onclick="copyPrompt()">📋 Copiar Prompt</button>
         </div>
-        <p>Copie o texto abaixo e cole na IA. Ela saberá exatamente como gerar o código.</p>
+        <p>Copie o texto abaixo e cole na IA. Ela saberá as novas regras de proporção (extent) e camadas (zorder).</p>
         <textarea id="aiPromptBox" class="prompt-box" readonly></textarea>
     </div>
 
@@ -86,18 +86,25 @@
         <h2>3. Código do Mapa (Cole o código da IA aqui)</h2>
         <textarea id="pythonCode">
 import matplotlib.pyplot as plt
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 # Configura o mapa/grid de RPG
 fig, ax = plt.subplots(figsize=(8, 8))
 ax.set_xlim(0, 10)
 ax.set_ylim(0, 10)
-ax.grid(True, linestyle='--', color='gray', alpha=0.5)
+
+# O zorder=5 garante que as linhas do grid fiquem ACIMA do piso, mas ABAIXO dos personagens
+ax.grid(True, linestyle='--', color='black', alpha=0.3, zorder=5)
 ax.set_xticks(range(11))
 ax.set_yticks(range(11))
 ax.set_title("Tabuleiro de Batalha")
 
-# O código que a IA gerar usando a função de colar tokens vai aqui.
+# --- O código gerado pela IA entrará aqui ---
+# Exemplo de como a IA deve agir agora:
+# img_piso = plt.imread("{{madeira}}")
+# ax.imshow(img_piso, extent=[0, 10, 0, 10], zorder=1) # Piso total
+#
+# img_personagem = plt.imread("{{guerreiro}}")
+# ax.imshow(img_personagem, extent=[2, 3, 2, 3], zorder=10) # Fica no quadrado exato (X=2, Y=2)
 
 plt.show()
         </textarea>
@@ -113,7 +120,7 @@ plt.show()
 
 <script>
     let pyodideInstance = null;
-    let tokensInfo = []; // Guarda os objetos: {name, desc, path, dataUrl}
+    let tokensInfo = []; 
 
     // Inicializa o Python
     async function initPyodide() {
@@ -140,18 +147,19 @@ plt.show()
         }
     }
 
-    // Atualiza a caixa de prompt da IA
+    // NOVA FUNÇÃO DO PROMPT DA IA (COM EXTENT E ZORDER)
     function updateAIPrompt() {
         const promptBox = document.getElementById('aiPromptBox');
         let basePrompt = `Atue como um assistente gerador de código Python para um tabuleiro virtual de RPG.
 Eu vou usar um sistema onde eu rodo Matplotlib no navegador.
 
-Sempre siga essas regras estritas para criar o código:
-1. Crie um gráfico usando \`fig, ax = plt.subplots(figsize=(8, 8))\`.
-2. Configure o grid de acordo com o tamanho do cenário pedido (padrão 10x10).
-3. CRIE uma função auxiliar que utilize \`OffsetImage\` do \`matplotlib.offsetbox\` e \`AnnotationBbox\` para desenhar personagens.
-4. IMPORTANTE: Para carregar a imagem na função auxiliar, você DEVE usar \`plt.imread("{{nome_do_token}}")\`. Meu sistema substitui esse token.
-5. Nunca invente tokens. Use APENAS os tokens listados abaixo.
+Sempre siga estas regras ESTRITAS de formatação para o código:
+1. Crie o grid com \`fig, ax = plt.subplots(figsize=(8, 8))\`.
+2. Configure o grid padrão (10x10) e defina o zorder do grid para ficar visível: \`ax.grid(True, zorder=5)\`.
+3. NÃO USE OffsetImage. Para carregar qualquer imagem, use: \`img = plt.imread("{{nome_do_token}}")\`
+4. PARA PISOS E CENÁRIOS: Use \`ax.imshow(img, extent=[x_inicial, x_final, y_inicial, y_final], zorder=1)\`. Por exemplo, para um piso que ocupa todo o cenário 10x10, use \`extent=[0, 10, 0, 10]\`. Para uma casa num canto, use \`extent=[6, 10, 6, 10]\`.
+5. PARA PERSONAGENS/MONSTROS: Use \`ax.imshow(img, extent=[x, x+1, y, y+1], zorder=10)\` para que ele ocupe EXATAMENTE um (1) quadrado no grid.
+6. Nunca invente tokens. Use APENAS os tokens listados abaixo.
 
 LISTA DE TOKENS DISPONÍVEIS:\n`;
 
@@ -172,7 +180,6 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
         alert("Prompt copiado!");
     }
 
-    // Função auxiliar para desenhar o Card na tela
     function renderTokenCard(name, desc, dataUrl) {
         const gallery = document.getElementById('tokenGallery');
         const card = document.createElement('div');
@@ -200,32 +207,26 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
 
         const file = fileInput.files[0];
         let tokenName = nameInput.value.trim().replace(/\s+/g, "_").toLowerCase() || file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_").toLowerCase();
-        let tokenDesc = descInput.value.trim() || "Miniatura sem descrição.";
+        let tokenDesc = descInput.value.trim() || "Miniatura/Textura sem descrição.";
         const virtualPath = `/tokens/${file.name}`;
 
-        // Verifica duplicata
         if (tokensInfo.some(t => t.name === tokenName)) {
             alert("Já existe um token com esse nome!"); return;
         }
 
-        // Lê como Base64 (DataURL) para salvar no JSON depois
         const reader = new FileReader();
         reader.onload = async function(evt) {
             const dataUrl = evt.target.result;
 
-            // Salva no sistema de arquivos do Python convertendo o DataURL para ArrayBuffer
             const res = await fetch(dataUrl);
             const buffer = await res.arrayBuffer();
             pyodideInstance.FS.writeFile(virtualPath, new Uint8Array(buffer));
 
-            // Salva no registro
             tokensInfo.push({ name: tokenName, desc: tokenDesc, path: virtualPath, dataUrl: dataUrl });
 
-            // Atualiza UI
             renderTokenCard(tokenName, tokenDesc, dataUrl);
             updateAIPrompt();
 
-            // Limpa inputs
             fileInput.value = ""; nameInput.value = ""; descInput.value = "";
         };
         reader.readAsDataURL(file);
@@ -239,7 +240,6 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
             alert("A biblioteca está vazia. Adicione tokens primeiro."); return;
         }
         
-        // Converte o array para JSON. Como os dataUrl já estão lá, as imagens vão junto!
         const jsonString = JSON.stringify(tokensInfo);
         const blob = new Blob([jsonString], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -268,10 +268,8 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
                 let loadedCount = 0;
 
                 for (let t of importedData) {
-                    // Evita importar tokens que já existem na tela com o mesmo nome
                     if (tokensInfo.some(existing => existing.name === t.name)) continue;
 
-                    // Converte o dataUrl que estava salvo de volta para arquivo do Python
                     const res = await fetch(t.dataUrl);
                     const buffer = await res.arrayBuffer();
                     pyodideInstance.FS.writeFile(t.path, new Uint8Array(buffer));
@@ -285,9 +283,7 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
                 document.getElementById('consoleOutput').innerText += `\n[Sistema] Coleção carregada: ${loadedCount} novos tokens inseridos.\n`;
                 alert(`Sucesso! ${loadedCount} tokens carregados.`);
                 
-                // Reseta o input de arquivo
                 document.getElementById('loadJsonInput').value = "";
-
             } catch (err) {
                 alert("Erro ao ler o arquivo JSON. Certifique-se de que é o arquivo correto gerado por este sistema.");
                 console.error(err);
@@ -307,7 +303,6 @@ LISTA DE TOKENS DISPONÍVEIS:\n`;
         consoleOut.innerText += "\n[Sistema] Renderizando mapa...\n";
         plotOut.style.display = "none";
 
-        // Substituição dos Tokens
         tokensInfo.forEach(t => {
             const regex = new RegExp(`\\{\\{${t.name}\\}\\}`, 'g');
             code = code.replace(regex, t.path);
